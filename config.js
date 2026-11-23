@@ -4,6 +4,12 @@ window.CORO_CONFIG = {
   // ID client OAuth "Applicazione web" (termina con .apps.googleusercontent.com)
   GOOGLE_CLIENT_ID: '',
 
+  // OneDrive: "ID applicazione (client)" registrata su portal.azure.com (vedi README)
+  MICROSOFT_CLIENT_ID: '',
+
+  // Dropbox: "App key" dell'app creata su dropbox.com/developers (vedi README)
+  DROPBOX_APP_KEY: '',
+
   // Facoltativo: se un giorno la cartella sarà condivisa con "chiunque abbia il link",
   // basterà una chiave API (senza login). Lascia vuoto per usare il login Google.
   GOOGLE_API_KEY: '',

@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Coro Player · accesso</title>
+  <style>body { font: 16px -apple-system, Roboto, sans-serif; text-align: center; padding: 40px 20px; color: #1d2430; background: #f6f4ef; }</style>
+</head>
+<body>
+  <p>Accesso completato. Puoi tornare all'app.</p>
+  <script>
+    // Riceve il codice di accesso (OneDrive, Dropbox) e lo passa all'app.
+    var p = new URLSearchParams(location.search);
+    var d = { code: p.get('code'), state: p.get('state'), error: p.get('error'), error_description: p.get('error_description') };
+    try { localStorage.setItem('coro.oauth', JSON.stringify(d)); } catch (e) {}
+    try { if (window.opener) window.opener.postMessage({ coroOAuth: d }, location.origin); } catch (e) {}
+    setTimeout(function () { window.close(); }, 400);
+  </script>
+</body>
+</html>

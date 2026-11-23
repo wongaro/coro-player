@@ -121,7 +121,7 @@
       const r = await fetch(file.url);
       if (!r.ok) throw new Error('Link non raggiungibile');
       blob = await r.blob();
-    } else blob = await Drive.download(file.id);
+    } else blob = await CoroSources.download(file);
     try {
       await idb.put(file.id, { blob, name: file.name, savedAt: Date.now() });
       state.offline.add(file.id);
@@ -455,15 +455,7 @@
   }
 
   function loginBanner() {
-    if (!CoroSources.hasDrive()) return '';
-    if (!Drive.isConfigured()) {
-      return `<div class="banner warn"><span>Manca l'ID client Google in <b>config.js</b>. Segui il README per configurarlo.</span></div>`;
-    }
-    if (!Drive.isSignedIn()) {
-      return `<div class="banner"><span>Per aggiornare il catalogo e scaricare nuovi brani accedi a Google.</span>
-        <button class="btn small" data-action="signin">Accedi</button></div>`;
-    }
-    return '';
+    return CoroSources.loginBanner();
   }
 
   function filteredSongs() {
@@ -551,13 +543,7 @@
         <div class="chips wrap">${VOICES.map(v => `<button class="chip ${state.settings.myVoice === v ? 'on' : ''}" data-action="set-voice" data-v="${v}">${vlabel(v)}</button>`).join('')}</div>
       </section>
       ${CoroSources.card()}
-      <section class="card">
-        <label class="lbl">Account Google</label>
-        <p>${Drive.apiKeyMode() ? 'Accesso tramite chiave API (cartella pubblica).' : Drive.isSignedIn() ? 'Connesso.' : 'Non connesso.'}</p>
-        ${Drive.apiKeyMode() ? '' : Drive.isSignedIn()
-          ? '<button class="btn ghost" data-action="signout">Esci</button>'
-          : `<button class="btn" data-action="signin" ${Drive.isConfigured() ? '' : 'disabled'}>Accedi con Google</button>`}
-      </section>
+      ${CoroSources.accountsCard()}
       <section class="card">
         <label class="lbl">Catalogo</label>
         <p>${c ? `${c.songs.length} brani · aggiornato il ${new Date(c.updated).toLocaleString('it-IT')}` : 'Non ancora caricato.'}</p>
@@ -568,7 +554,7 @@
         <p id="storage-info">${[...state.offline].filter(k => !String(k).startsWith('local:')).length} file scaricati sul telefono (i file importati dal dispositivo non vengono toccati).</p>
         <button class="btn ghost" data-action="clear-offline">Svuota</button>
       </section>
-      <p class="foot">${esc(CFG.APP_NAME)} · v1.2</p>`;
+      <p class="foot">${esc(CFG.APP_NAME)} · v1.3</p>`;
   }
 
   // ---------- Schede (sheet) ----------
@@ -586,7 +572,7 @@
     const voices = VOICES.filter(v => song.tracks[v]).concat(Object.keys(song.tracks).filter(v => !VOICES.includes(v)));
     const my = state.settings.myVoice;
     const pls = state.playlists.map(p => `<button class="chip" data-action="add-to-pl" data-pl="${esc(p.id)}" data-song="${esc(song.id)}">${esc(p.name)}</button>`).join('');
-    return `<h3>${esc(song.title)}</h3>
+    return `<h3 class="song-h">${esc(song.title)}</h3>
       <p class="sub">${song.arranger ? `<span class="cap">${esc(song.arranger)}</span>` : ''}${song.arranger && song.version ? ' · ' : ''}${esc(fmtVersion(song.version))}</p>
       ${song.tracks[my] ? `<button class="btn wide" data-action="play-song" data-id="${esc(song.id)}" data-v="${my}">▶ ${esc(vlabel(my))} (la mia voce)</button>` : ''}
       <label class="lbl">Voci</label>
@@ -665,7 +651,8 @@
 
   async function openPdf(song) {
     if (!song || !song.pdf) return;
-    if (navigator.onLine && !state.offline.has(song.pdf.id)) { window.open(Drive.viewUrl(song.pdf.id), '_blank'); return; }
+    const onGoogle = !song.pdf.origin || song.pdf.origin === 'google' || song.pdf.origin === 'gdrive';
+    if (onGoogle && navigator.onLine && !state.offline.has(song.pdf.id)) { window.open(Drive.viewUrl(song.pdf.id), '_blank'); return; }
     try {
       const blob = await getBlob(song.pdf);
       const url = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
@@ -817,7 +804,7 @@
   seek.addEventListener('pointerup', () => { seek._dragging = false; });
   $('#sheet').addEventListener('click', (ev) => { if (ev.target.id === 'sheet') closeSheet(); });
 
-  window.CoroApp = { render, refreshCatalog, toast };
+  window.CoroApp = { render, refreshCatalog, toast, openSheet, closeSheet };
 
   // ---------- Avvio ----------
   async function start() {

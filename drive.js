@@ -107,7 +107,8 @@
           pageSize: '1000',
           fields: 'nextPageToken, files(id, name, mimeType, parents, modifiedTime, size, resourceKey)',
           supportsAllDrives: 'true',
-          includeItemsFromAllDrives: 'true'
+          includeItemsFromAllDrives: 'true',
+          corpora: 'allDrives'
         });
         if (pageToken) params.set('pageToken', pageToken);
         const res = await request(API + '?' + params.toString(), chunk);
@@ -121,6 +122,37 @@
       if (onProgress) onProgress(Math.min(i + CHUNK, parentIds.length), parentIds.length);
     }
     saveKeys();
+    return out;
+  }
+
+  // Ricerca libera (es. "Condivisi con me")
+  async function query(q) {
+    const out = [];
+    let pageToken = '';
+    do {
+      const params = new URLSearchParams({
+        q, pageSize: '1000', supportsAllDrives: 'true', includeItemsFromAllDrives: 'true',
+        fields: 'nextPageToken, files(id, name, mimeType, parents, modifiedTime, size, resourceKey)'
+      });
+      if (pageToken) params.set('pageToken', pageToken);
+      const data = await (await request(API + '?' + params.toString(), [])).json();
+      for (const f of data.files || []) { if (f.resourceKey) resourceKeys[f.id] = f.resourceKey; out.push(f); }
+      pageToken = data.nextPageToken || '';
+    } while (pageToken);
+    saveKeys();
+    return out;
+  }
+
+  async function sharedDrives() {
+    const out = [];
+    let pageToken = '';
+    do {
+      const params = new URLSearchParams({ pageSize: '100' });
+      if (pageToken) params.set('pageToken', pageToken);
+      const data = await (await request('https://www.googleapis.com/drive/v3/drives?' + params.toString(), [])).json();
+      out.push(...(data.drives || []));
+      pageToken = data.nextPageToken || '';
+    } while (pageToken);
     return out;
   }
 
@@ -150,5 +182,5 @@
     return (await res.json()).name;
   }
 
-  root.Drive = { addResourceKey, parseFolderLink, folderName, isSignedIn, isConfigured, apiKeyMode, signIn, signOut, listChildren, download, viewUrl, FOLDER, NeedLogin, initClient };
+  root.Drive = { query, sharedDrives, addResourceKey, parseFolderLink, folderName, isSignedIn, isConfigured, apiKeyMode, signIn, signOut, listChildren, download, viewUrl, FOLDER, NeedLogin, initClient };
 })(window);

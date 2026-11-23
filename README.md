@@ -5,10 +5,14 @@ Legge i brani dalla cartella **Spartiti Coro** su Google Drive e riconosce da so
 brano, armonizzatore, voce (primi, secondi, baritoni, bassi, tutti) e versione.
 
 ## Cosa fa
-- **Sorgenti della libreria** configurabili in *Impostazioni*, attivabili e disattivabili una per una:
-  - **cartelle Google Drive**, quante vuoi. *Spartiti Coro* è preimpostata. L'app esplora le sottocartelle, ignora `archivio` e per ogni voce usa la versione più recente;
-  - **link online**: file audio (`https://…mp3`) o playlist `.m3u`. Per dare un titolo scrivi `Titolo | https://…`;
-  - **file dal dispositivo**, scelti con il selettore di sistema. Su iPhone è l'app File, quindi funzionano anche **iCloud Drive, OneDrive e Dropbox**. I file vengono copiati nell'app.
+- **Sorgenti della libreria**: in *Impostazioni → Aggiungi sorgente* scegli il servizio, accedi, sfogli le cartelle e confermi quella da usare. Ogni sorgente si può attivare, disattivare, rinominare o togliere.
+  - **Google Drive**: Il mio Drive, Condivisi con me, Drive condivisi;
+  - **OneDrive** (personale e condivisi) e **Dropbox**: serve una registrazione gratuita una tantum, vedi più sotto;
+  - **iCloud Drive**: Apple non permette alle app web di sfogliarlo, quindi i file si scelgono con l'app File e vengono copiati nell'app;
+  - **File del dispositivo**: su computer si sceglie una cartella intera (con le sottocartelle), su iPhone si scelgono i file. Vengono copiati nell'app;
+  - **Link online**: file audio (`https://…mp3`) o playlist `.m3u`. Per dare un titolo scrivi `Titolo | https://…`.
+
+  L'app legge la cartella scelta e tutte le sottocartelle, ignora quelle chiamate `archivio` e per ogni voce usa la versione più recente.
 - **Riconoscimento automatico dei brani**: in una cartella, i file che iniziano con il nome della cartella formano un brano con le sue voci; gli altri file (per esempio gli esercizi di riscaldamento) diventano brani separati.
 - **La mia voce**: la scegli una volta e ogni brano parte dalla tua parte.
 - **Cambio voce senza perdere il punto**: passi da Baritoni a Tutti e la riproduzione continua dallo stesso istante.
@@ -48,6 +52,18 @@ brano, armonizzatore, voce (primi, secondi, baritoni, bassi, tutti) e versione.
    - tipo: **Applicazione web**;
    - **Origini JavaScript autorizzate**: `https://TUONOME.github.io` (solo il dominio, senza `/coro-player`).
 6. Copia l'**ID client**, che termina con `.apps.googleusercontent.com`.
+
+### 2b. Facoltativo: OneDrive
+1. Apri https://portal.azure.com con il tuo account Microsoft → **Microsoft Entra ID → Registrazioni app → Nuova registrazione**.
+2. Nome *Coro Player*; tipi di account: **account in qualsiasi directory organizzativa e account Microsoft personali**.
+3. URI di reindirizzamento: piattaforma **Applicazione a pagina singola (SPA)**, indirizzo `https://TUONOME.github.io/coro-player/auth.html`.
+4. Copia l'**ID applicazione (client)** in `config.js` alla voce `MICROSOFT_CLIENT_ID`.
+
+### 2c. Facoltativo: Dropbox
+1. Apri https://www.dropbox.com/developers/apps → **Create app** → *Scoped access* → *Full Dropbox*.
+2. Nella scheda **Permissions** attiva `files.metadata.read` e `files.content.read`, poi **Submit**.
+3. Nella scheda **Settings**, in *Redirect URIs* aggiungi `https://TUONOME.github.io/coro-player/auth.html`.
+4. Copia l'**App key** in `config.js` alla voce `DROPBOX_APP_KEY`.
 
 ### 3. Inserisci l'ID client
 Su GitHub apri `config.js` e clicca la matita per modificarlo. Incolla l'ID tra gli apici:
@@ -90,6 +106,7 @@ Poi **Commit changes** e attendi circa un minuto.
 | `app.js` | catalogo, player, playlist, offline |
 | `parser.js` | riconoscimento di brano, voce e versione dai nomi dei file |
 | `drive.js` | login Google e accesso a Drive |
-| `sources.js` | sorgenti della libreria: Drive, link, file importati |
-| `config.js` | impostazioni (ID client, sorgenti iniziali, voci) |
+| `providers.js`, `auth.html` | accesso a Google Drive, OneDrive e Dropbox |
+| `sources.js` | sorgenti della libreria e selettore delle cartelle |
+| `config.js` | impostazioni (ID dei servizi, sorgenti iniziali, voci) |
 | `sw.js`, `manifest.webmanifest`, icone `.png` | installazione come app e funzionamento offline |
