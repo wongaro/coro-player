@@ -5,7 +5,11 @@ Legge i brani dalla cartella **Spartiti Coro** su Google Drive e riconosce da so
 brano, armonizzatore, voce (primi, secondi, baritoni, bassi, tutti) e versione.
 
 ## Cosa fa
-- **Catalogo** dalla cartella del coro: lettere A–Z, "canti armonizzati da Ivan", "Audio Riscaldamento e Prove". La cartella `archivio` viene ignorata e per ogni voce si usa la versione più recente.
+- **Sorgenti della libreria** configurabili in *Impostazioni*, attivabili e disattivabili una per una:
+  - **cartelle Google Drive**, quante vuoi. *Spartiti Coro* è preimpostata. L'app esplora le sottocartelle, ignora `archivio` e per ogni voce usa la versione più recente;
+  - **link online**: file audio (`https://…mp3`) o playlist `.m3u`. Per dare un titolo scrivi `Titolo | https://…`;
+  - **file dal dispositivo**, scelti con il selettore di sistema. Su iPhone è l'app File, quindi funzionano anche **iCloud Drive, OneDrive e Dropbox**. I file vengono copiati nell'app.
+- **Riconoscimento automatico dei brani**: in una cartella, i file che iniziano con il nome della cartella formano un brano con le sue voci; gli altri file (per esempio gli esercizi di riscaldamento) diventano brani separati.
 - **La mia voce**: la scegli una volta e ogni brano parte dalla tua parte.
 - **Cambio voce senza perdere il punto**: passi da Baritoni a Tutti e la riproduzione continua dallo stesso istante.
 - **Ripetizione A–B** di un passaggio e **velocità** dal 50% al 150% senza cambiare l'intonazione.
@@ -86,5 +90,6 @@ Poi **Commit changes** e attendi circa un minuto.
 | `app.js` | catalogo, player, playlist, offline |
 | `parser.js` | riconoscimento di brano, voce e versione dai nomi dei file |
 | `drive.js` | login Google e accesso a Drive |
-| `config.js` | impostazioni (ID client, cartella, voci) |
+| `sources.js` | sorgenti della libreria: Drive, link, file importati |
+| `config.js` | impostazioni (ID client, sorgenti iniziali, voci) |
 | `sw.js`, `manifest.webmanifest`, icone `.png` | installazione come app e funzionamento offline |

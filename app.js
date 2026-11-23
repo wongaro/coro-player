@@ -42,7 +42,12 @@
       get: id => tx('readonly', st => st.get(id)),
       put: (id, val) => tx('readwrite', st => st.put(val, id)),
       keys: () => tx('readonly', st => st.getAllKeys()),
-      clear: () => tx('readwrite', st => st.clear())
+      clear: () => tx('readwrite', st => st.clear()),
+      clearDownloads: async () => {
+        const keys = await tx('readonly', st => st.getAllKeys());
+        const del = keys.filter(k => !String(k).startsWith('local:'));
+        if (del.length) await tx('readwrite', st => del.forEach(k => st.delete(k)));
+      }
     };
   })();
 
@@ -74,45 +79,12 @@
     if (state.refreshing) return;
     state.refreshing = true;
     render();
-    const progress = (label) => (done, total) => setProgress(`${label} ${done}/${total}`);
     try {
-      setProgress('Lettura cartella principale…');
-      const lvl1 = await Drive.listChildren([CFG.ROOT_FOLDER_ID]);
-      const l1 = lvl1.filter(f => isFolder(f) && !isArchive(f));
-      const l1Name = Object.fromEntries(l1.map(f => [f.id, f.name]));
-      const lvl2 = await Drive.listChildren(l1.map(f => f.id), progress('Lettura sezioni'));
-      const songFolders = [];
-      const loose = [];
-      for (const f of lvl2) {
-        const parent = (f.parents || []).find(p => l1Name[p]);
-        if (!parent) continue;
-        if (isFolder(f)) { if (!isArchive(f)) songFolders.push({ id: f.id, name: f.name, collection: collectionLabel(l1Name[parent]) }); }
-        else loose.push(Object.assign({}, f, { collection: collectionLabel(l1Name[parent]) }));
-      }
-      const lvl3 = await Drive.listChildren(songFolders.map(f => f.id), progress('Lettura brani'));
-      const byParent = {};
-      for (const f of lvl3) {
-        if (isFolder(f)) continue;
-        for (const p of f.parents || []) (byParent[p] = byParent[p] || []).push(f);
-      }
-      const songs = [];
-      for (const sf of songFolders) {
-        const s = P.buildSong(sf.name, byParent[sf.id] || []);
-        if (!Object.keys(s.tracks).length && !s.pdf) continue;
-        songs.push(Object.assign(s, { id: sf.id, collection: sf.collection }));
-      }
-      for (const f of loose) {
-        const { base, ext } = P.splitExt(f.name);
-        const kind = P.kindOf(ext, f.mimeType);
-        if (kind !== 'audio' && kind !== 'video') continue;
-        songs.push({
-          id: f.id, title: base, arranger: '', folderName: base, collection: f.collection, version: '',
-          tracks: { tutti: Object.assign({}, f, { kind, ext, voice: 'tutti' }) }, videos: {}, pdf: null
-        });
-      }
+      const prev = state.catalog ? state.catalog.songs : [];
+      const { songs, problems } = await CoroSources.scanAll(prev, setProgress);
       songs.sort((a, b) => a.title.localeCompare(b.title, 'it') || a.arranger.localeCompare(b.arranger, 'it'));
       // riduce i campi salvati
-      const slim = t => t && { id: t.id, name: t.name, kind: t.kind, voice: t.voice, version: t.version, size: t.size };
+      const slim = t => t && { id: t.id, name: t.name, kind: t.kind, voice: t.voice, version: t.version, size: t.size, origin: t.origin, url: t.url };
       for (const s of songs) {
         for (const v of Object.keys(s.tracks)) s.tracks[v] = slim(s.tracks[v]);
         for (const v of Object.keys(s.videos)) s.videos[v] = slim(s.videos[v]);
@@ -120,7 +92,8 @@
       }
       state.catalog = { updated: new Date().toISOString(), songs };
       store.set('coro.catalog', state.catalog);
-      toast(`Catalogo aggiornato: ${songs.length} brani`);
+      if (problems.length) toast('Non aggiornate: ' + problems.join(' · '));
+      else toast(`Catalogo aggiornato: ${songs.length} brani`);
     } catch (e) {
       handleError(e);
     } finally {
@@ -142,7 +115,13 @@
   async function getBlob(file) {
     const cached = await idb.get(file.id).catch(() => null);
     if (cached && cached.blob) return cached.blob;
-    const blob = await Drive.download(file.id);
+    if (file.origin === 'local') throw new Error('File non più presente sul dispositivo: importalo di nuovo.');
+    let blob;
+    if (file.origin === 'url') {
+      const r = await fetch(file.url);
+      if (!r.ok) throw new Error('Link non raggiungibile');
+      blob = await r.blob();
+    } else blob = await Drive.download(file.id);
     try {
       await idb.put(file.id, { blob, name: file.name, savedAt: Date.now() });
       state.offline.add(file.id);
@@ -305,22 +284,32 @@
         player.song = song; player.voice = voice; player.track = track;
         el = track.kind === 'video' ? video : audio;
         renderPlayer();
-        let blob = await getBlob(track);
-        if (my !== player.token) return;
-        if (player.boost !== 'off') {
-          if (track.kind === 'audio') {
-            try {
-              const b = await boostBlob(blob, player.boost);
-              blob = b.blob; player.gainDb = b.gainDb;
-            } catch (e) { player.boostNote = 'Impossibile alzare il volume di questo file'; }
-            if (my !== player.token) return;
-          } else {
-            player.boostNote = 'Per i video il volume resta quello originale';
+        let blob = null;
+        if (track.origin === 'url' && !state.offline.has(track.id)) {
+          // link online: si ascolta in streaming; si scarica solo se serve alzare il volume
+          if (player.boost !== 'off' && track.kind === 'audio') {
+            try { blob = await getBlob(track); } catch (e) { player.boostNote = 'Questo link non permette di alzare il volume'; }
           }
+        } else blob = await getBlob(track);
+        if (my !== player.token) return;
+        if (!blob) {
+          src = track.url;
+        } else {
+          if (player.boost !== 'off') {
+            if (track.kind === 'audio') {
+              try {
+                const b = await boostBlob(blob, player.boost);
+                blob = b.blob; player.gainDb = b.gainDb;
+              } catch (e) { player.boostNote = 'Impossibile alzare il volume di questo file'; }
+              if (my !== player.token) return;
+            } else {
+              player.boostNote = 'Per i video il volume resta quello originale';
+            }
+          }
+          if (player.objectUrl) URL.revokeObjectURL(player.objectUrl);
+          player.objectUrl = URL.createObjectURL(blob);
+          src = player.objectUrl;
         }
-        if (player.objectUrl) URL.revokeObjectURL(player.objectUrl);
-        player.objectUrl = URL.createObjectURL(blob);
-        src = player.objectUrl;
         title = song.title; subtitle = vlabel(voice) + (song.arranger ? ' · ' + song.arranger : '');
       }
       await unlockDone;
@@ -466,6 +455,7 @@
   }
 
   function loginBanner() {
+    if (!CoroSources.hasDrive()) return '';
     if (!Drive.isConfigured()) {
       return `<div class="banner warn"><span>Manca l'ID client Google in <b>config.js</b>. Segui il README per configurarlo.</span></div>`;
     }
@@ -488,8 +478,8 @@
       return `${loginBanner()}
         <div class="empty">
           <h2>Benvenuto</h2>
-          <p>L'app legge i brani dalla cartella <b>Spartiti Coro</b> del tuo Google Drive.</p>
-          <button class="btn" data-action="refresh" ${state.refreshing || !Drive.isSignedIn() ? 'disabled' : ''}>Carica il catalogo</button>
+          <p>L'app raccoglie i brani dalle sorgenti indicate in <b>Impostazioni → Sorgenti della libreria</b>: cartelle Google Drive, link online e file del dispositivo.</p>
+          <button class="btn" data-action="refresh" ${state.refreshing ? 'disabled' : ''}>Carica il catalogo</button>
         </div>`;
     }
     const cols = [...new Set(state.catalog.songs.map(s => s.collection))];
@@ -499,7 +489,7 @@
       const letter = s.title.charAt(0).toUpperCase();
       const head = letter !== lastLetter ? `<li class="letter">${esc(letter)}</li>` : '';
       lastLetter = letter;
-      const has = s.tracks[state.settings.myVoice] ? '' : '<span class="tag dim">no ' + esc(vlabel(state.settings.myVoice)) + '</span>';
+      const has = s.tracks[state.settings.myVoice] || Object.keys(s.tracks).length < 2 ? '' : '<span class="tag dim">no ' + esc(vlabel(state.settings.myVoice)) + '</span>';
       return `${head}<li class="song" data-action="open-song" data-id="${esc(s.id)}">
         <div class="song-main"><div class="song-title">${esc(s.title)}</div>
         <div class="song-sub">${esc([s.arranger, s.collection !== 'Repertorio' ? s.collection : ''].filter(Boolean).join(' · '))}</div></div>
@@ -560,6 +550,7 @@
         <label class="lbl">La mia voce</label>
         <div class="chips wrap">${VOICES.map(v => `<button class="chip ${state.settings.myVoice === v ? 'on' : ''}" data-action="set-voice" data-v="${v}">${vlabel(v)}</button>`).join('')}</div>
       </section>
+      ${CoroSources.card()}
       <section class="card">
         <label class="lbl">Account Google</label>
         <p>${Drive.apiKeyMode() ? 'Accesso tramite chiave API (cartella pubblica).' : Drive.isSignedIn() ? 'Connesso.' : 'Non connesso.'}</p>
@@ -570,14 +561,14 @@
       <section class="card">
         <label class="lbl">Catalogo</label>
         <p>${c ? `${c.songs.length} brani · aggiornato il ${new Date(c.updated).toLocaleString('it-IT')}` : 'Non ancora caricato.'}</p>
-        <button class="btn" data-action="refresh" ${state.refreshing || !Drive.isSignedIn() ? 'disabled' : ''}>${state.refreshing ? 'Aggiornamento…' : 'Aggiorna catalogo'}</button>
+        <button class="btn" data-action="refresh" ${state.refreshing ? 'disabled' : ''}>${state.refreshing ? 'Aggiornamento…' : 'Aggiorna catalogo'}</button>
       </section>
       <section class="card">
         <label class="lbl">Brani offline</label>
-        <p id="storage-info">${state.offline.size} file salvati sul telefono.</p>
+        <p id="storage-info">${[...state.offline].filter(k => !String(k).startsWith('local:')).length} file scaricati sul telefono (i file importati dal dispositivo non vengono toccati).</p>
         <button class="btn ghost" data-action="clear-offline">Svuota</button>
       </section>
-      <p class="foot">${esc(CFG.APP_NAME)} · v1.1</p>`;
+      <p class="foot">${esc(CFG.APP_NAME)} · v1.2</p>`;
   }
 
   // ---------- Schede (sheet) ----------
@@ -774,7 +765,7 @@
       }
       case 'set-voice': state.settings.myVoice = d.v; saveSettings(); render(); break;
       case 'clear-offline':
-        if (confirm('Eliminare tutti i brani salvati sul telefono?')) idb.clear().then(() => { state.offline = new Set(); render(); });
+        if (confirm('Eliminare i brani scaricati sul telefono?')) idb.clearDownloads().then(loadOfflineIndex).then(render);
         break;
       case 'close-sheet': closeSheet(); break;
       case 'mini-open': openPlayer(); break;
@@ -825,6 +816,8 @@
   seek.addEventListener('pointerdown', () => { seek._dragging = true; });
   seek.addEventListener('pointerup', () => { seek._dragging = false; });
   $('#sheet').addEventListener('click', (ev) => { if (ev.target.id === 'sheet') closeSheet(); });
+
+  window.CoroApp = { render, refreshCatalog, toast };
 
   // ---------- Avvio ----------
   async function start() {

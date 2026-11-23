@@ -1,8 +1,8 @@
 // Service worker: tiene in cache l'app per l'uso offline.
 // I file audio sono salvati dall'app in IndexedDB, non qui.
-const CACHE = 'coro-player-v2';
+const CACHE = 'coro-player-v3';
 const SHELL = [
-  './', 'index.html', 'styles.css', 'config.js', 'parser.js', 'drive.js', 'app.js',
+  './', 'index.html', 'styles.css', 'config.js', 'parser.js', 'drive.js', 'sources.js', 'app.js',
   'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'
 ];
 

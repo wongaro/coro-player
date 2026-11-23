@@ -107,7 +107,38 @@
     };
   }
 
-  const api = { parseFile, parseSongFolder, buildSong, splitExt, kindOf };
+  // Raggruppa i file di una cartella in brani.
+  // I file che iniziano con il nome della cartella formano un unico brano (caso tipico);
+  // gli altri vengono raggruppati per nome, tolti voce e versione (es. una cartella di esercizi).
+  function songKey(base) {
+    let k = norm(base).replace(/(?:^|[\s\-_])v\d{8}[a-z]*(?=$|[\s\-_.])/i, ' ');
+    for (const v of voicesList()) k = k.replace(new RegExp('(^|[^a-zà-ù])' + v + '($|[^a-zà-ù])', 'i'), '$1 $2');
+    return k.replace(/[\s\-_]+$/g, '').replace(/^[\s\-_]+/g, '').replace(/\s*-\s*(-\s*)+/g, ' - ').replace(/\s+/g, ' ').trim();
+  }
+  function groupFiles(folderName, files) {
+    const groups = new Map();
+    const pref = folderName ? norm(folderName) : '';
+    for (const f of files) {
+      const { base, ext } = splitExt(f.name);
+      if (!kindOf(ext, f.mimeType)) continue;
+      const key = pref && norm(base).startsWith(pref) ? '\u0000' : songKey(base) || norm(base);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(f);
+    }
+    const out = [];
+    for (const [key, list] of groups) {
+      if (key === '\u0000') { out.push(Object.assign(buildSong(folderName, list), { key: '' })); continue; }
+      // nome leggibile: dal primo file, senza voce e versione
+      const { base } = splitExt(list[0].name);
+      let name = base.replace(/(?:^|[\s\-_])v\d{8}[a-z]*(?=$|[\s\-_.])/i, ' ');
+      for (const v of voicesList()) name = name.replace(new RegExp('(^|[^A-Za-zÀ-ùà-ù])' + v + '($|[^A-Za-zÀ-ùà-ù])', 'i'), '$1 $2');
+      name = name.replace(/[\s\-_]+$/g, '').replace(/\s*-\s*(-\s*)+/g, ' - ').replace(/\s+/g, ' ').trim() || base;
+      out.push(Object.assign(buildSong(name, list), { key }));
+    }
+    return out;
+  }
+
+  const api = { parseFile, parseSongFolder, buildSong, groupFiles, splitExt, kindOf };
   root.CoroParser = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -13,7 +13,7 @@
   // resourceKey dei file/cartelle (necessari per i vecchi link condivisi "0B...")
   let resourceKeys = {};
   try { resourceKeys = JSON.parse(localStorage.getItem(RK_KEY)) || {}; } catch (e) { resourceKeys = {}; }
-  if (CFG.ROOT_RESOURCE_KEY) resourceKeys[CFG.ROOT_FOLDER_ID] = CFG.ROOT_RESOURCE_KEY;
+  for (const src of CFG.DEFAULT_SOURCES || []) if (src.resourceKey) resourceKeys[src.folderId] = src.resourceKey;
   function saveKeys() {
     try { localStorage.setItem(RK_KEY, JSON.stringify(resourceKeys)); } catch (e) { /* quota */ }
   }
@@ -134,5 +134,21 @@
     return `https://drive.google.com/file/d/${fileId}/view` + (rk ? `?resourcekey=${encodeURIComponent(rk)}` : '');
   }
 
-  root.Drive = { isSignedIn, isConfigured, apiKeyMode, signIn, signOut, listChildren, download, viewUrl, FOLDER, NeedLogin, initClient };
+  function addResourceKey(id, key) { if (id && key) { resourceKeys[id] = key; saveKeys(); } }
+
+  // Accetta un link di cartella Drive (anche con resourcekey) oppure il solo ID
+  function parseFolderLink(text) {
+    const t = String(text || '').trim();
+    let id = (t.match(/\/folders\/([A-Za-z0-9_-]{10,})/) || t.match(/[?&]id=([A-Za-z0-9_-]{10,})/) || [])[1];
+    if (!id && /^[A-Za-z0-9_-]{10,}$/.test(t)) id = t;
+    const rk = (t.match(/[?&]resourcekey=([^&#\s]+)/i) || [])[1];
+    return id ? { folderId: id, resourceKey: rk ? decodeURIComponent(rk) : '' } : null;
+  }
+
+  async function folderName(id) {
+    const res = await request(`${API}/${encodeURIComponent(id)}?fields=name&supportsAllDrives=true`, [id]);
+    return (await res.json()).name;
+  }
+
+  root.Drive = { addResourceKey, parseFolderLink, folderName, isSignedIn, isConfigured, apiKeyMode, signIn, signOut, listChildren, download, viewUrl, FOLDER, NeedLogin, initClient };
 })(window);
