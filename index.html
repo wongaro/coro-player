@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Coro Player</title>
+  <meta name="theme-color" content="#14213d">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Coro">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="icon" href="icon-192.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">Coro Player</div>
+    <div id="progress" class="progress" hidden></div>
+  </header>
+
+  <main id="main"></main>
+
+  <!-- mini player -->
+  <div id="mini" class="mini" hidden>
+    <div class="mini-bar"><div id="mini-progress"></div></div>
+    <div class="mini-row">
+      <div class="mini-info" data-action="mini-open">
+        <div id="mini-title" class="mini-title"></div>
+        <div id="mini-sub" class="mini-sub"></div>
+      </div>
+      <button id="mini-play" class="round" data-action="mini-play" aria-label="Play/Pausa">▶</button>
+    </div>
+  </div>
+
+  <nav class="tabs">
+    <button class="tab active" data-action="tab" data-view="library">♫<span>Brani</span></button>
+    <button class="tab" data-action="tab" data-view="playlists">☰<span>Playlist</span></button>
+    <button class="tab" data-action="tab" data-view="settings">⚙<span>Impostazioni</span></button>
+  </nav>
+
+  <!-- player completo -->
+  <section id="player" class="player" hidden>
+    <div class="player-head">
+      <button class="link" data-action="p-close">⌄ Chiudi</button>
+      <button id="p-pdf" class="link" data-action="p-pdf">Spartito</button>
+    </div>
+    <div id="video-wrap" class="video-wrap" hidden>
+      <video id="video" playsinline webkit-playsinline preload="auto"></video>
+    </div>
+    <div class="p-titles">
+      <div id="p-title" class="p-title"></div>
+      <div id="p-sub" class="p-sub"></div>
+    </div>
+    <div id="p-voices" class="chips center"></div>
+
+    <div class="seek-wrap">
+      <div id="p-marks" class="loop-marks" hidden></div>
+      <input id="p-seek" type="range" min="0" max="1000" step="1" value="0" aria-label="Posizione">
+    </div>
+    <div class="times"><span id="p-cur">0:00</span><span id="p-dur">0:00</span></div>
+
+    <div class="controls">
+      <button class="round ghost" data-action="p-prev" aria-label="Precedente">⏮</button>
+      <button class="round ghost" data-action="p-back" aria-label="Indietro 10 secondi">−10</button>
+      <button id="p-play" class="round big" data-action="p-play" aria-label="Play/Pausa">▶</button>
+      <button class="round ghost" data-action="p-fwd" aria-label="Avanti 10 secondi">+10</button>
+      <button class="round ghost" data-action="p-next" aria-label="Successivo">⏭</button>
+    </div>
+
+    <div class="block">
+      <div class="block-head">Ripetizione A–B <span id="p-loop-info" class="muted"></span></div>
+      <div class="loop-row">
+        <button id="p-a" class="chip" data-action="p-a">Imposta A</button>
+        <button id="p-b" class="chip" data-action="p-b">Imposta B</button>
+        <button class="chip" data-action="p-loop-clear">Annulla</button>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="block-head">Volume <span id="p-boost-val" class="muted"></span></div>
+      <div id="p-boost" class="chips wrap tight"></div>
+    </div>
+
+    <div class="block">
+      <div class="block-head">Velocità <span id="p-rate-val" class="muted">100%</span></div>
+      <div class="rate-row">
+        <button class="chip" data-action="rate-step" data-step="-0.05">−</button>
+        <input id="p-rate" type="range" min="0.5" max="1.5" step="0.05" value="1" aria-label="Velocità">
+        <button class="chip" data-action="rate-step" data-step="0.05">+</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- scheda brano -->
+  <div id="sheet" class="sheet" hidden>
+    <div class="sheet-panel">
+      <div class="sheet-grip" data-action="close-sheet"></div>
+      <div id="sheet-body"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+  <audio id="audio" preload="auto"></audio>
+
+  <script src="config.js"></script>
+  <script src="parser.js"></script>
+  <script src="drive.js"></script>
+  <script src="app.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</body>
+</html>
